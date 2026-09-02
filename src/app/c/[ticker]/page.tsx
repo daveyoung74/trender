@@ -43,6 +43,14 @@ export default async function CoinPage({ params }: { params: Promise<{ ticker: s
                 </dd>
               </div>
             ) : null}
+            {coin.buyTx ? (
+              <div>
+                <dt className="uppercase tracking-widest">Opening buy</dt>
+                <dd className="text-fg">
+                  {(coin.buyMillisol / 1000).toFixed(3)} SOL
+                </dd>
+              </div>
+            ) : null}
             {coin.imageKind ? (
               <div>
                 <dt className="uppercase tracking-widest">Image</dt>

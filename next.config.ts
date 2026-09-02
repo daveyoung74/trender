@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
     "@solana/web3.js",
     "bullmq",
     "ioredis",
+    "@solana/spl-token",
+    "bn.js",
   ],
   images: {
     remotePatterns: [

@@ -50,6 +50,8 @@ export const launches = mysqlTable(
     mintAddress: varchar("mint_address", { length: 64 }),
     mintSecretSealed: text("mint_secret_sealed"),
     createTx: varchar("create_tx", { length: 128 }),
+    buyTx: varchar("buy_tx", { length: 128 }),
+    buyMillisol: int("buy_millisol").notNull().default(0),
     dryRun: boolean("dry_run").notNull().default(false),
     error: varchar("error", { length: 280 }),
     idempotencyKey: varchar("idempotency_key", { length: 128 }),

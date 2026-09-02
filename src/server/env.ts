@@ -82,6 +82,8 @@ export const env = {
   trenderApiKey: optional("TRENDER_API_KEY"),
   treasurySecret: optional("TREASURY_SECRET"),
   feeSweepMinSol: floatEnv("FEE_SWEEP_MIN_SOL", 0.05),
+  /** USD of SOL to buy on the Pump curve immediately after create_v2. 0 skips the buy. */
+  launchBuyUsd: floatEnv("LAUNCH_BUY_USD", 10),
   solanaRpcUrl: optional("SOLANA_RPC_URL"),
   xaiApiKey: optional("XAI_API_KEY"),
   xaiTextModel: optional("XAI_TEXT_MODEL") ?? "grok-4-1-fast-non-reasoning",

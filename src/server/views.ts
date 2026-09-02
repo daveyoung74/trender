@@ -33,6 +33,8 @@ export function publicLaunchView(row: LaunchRow) {
     website: row.website,
     mint_address: row.mintAddress,
     create_tx: row.createTx,
+    buy_tx: row.buyTx,
+    buy_millisol: row.buyMillisol,
     pump_url: pumpUrl(row.mintAddress),
     error: row.error,
     created_at: row.createdAt,

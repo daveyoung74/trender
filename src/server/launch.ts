@@ -12,9 +12,11 @@ import { getAppRedis, redisKey } from "@/server/redis";
 import { newId } from "@/server/ids";
 import { resolveLaunchImage } from "@/server/image";
 import { sealSecret, unsealSecret } from "@/server/keys";
+import { launchBuyReserveLamports, sendLaunchBuy } from "@/server/launch-buy";
 import { formatSol, millisolFromLamports } from "@/server/money";
 import { buildCreateV2Instruction, PUMP_PROGRAM } from "@/server/pump";
 import { requireSafeText } from "@/server/safety";
+import { launchBuyLamports } from "@/server/sol-price";
 import { spacesReady } from "@/server/storage";
 import {
   assertPumpMetadataUri,
@@ -389,16 +391,19 @@ async function sendCreateV2(launchId: string) {
     throw statusError(500, "Reserved mint key does not match");
   }
 
+  const buyLamports = await launchBuyLamports();
+  const buyReserve = launchBuyReserveLamports(buyLamports);
+
   const mintInfo = await connection.getAccountInfo(mintKp.publicKey);
   if (mintInfo) {
-    return patch(row.id, { status: "live", error: null });
+    return finishLive(row.id, { createTx: row.createTx, buyLamports, connection, treasury, mint: mintKp.publicKey });
   }
 
   const balance = await onChainBalance(payer.toBase58());
-  if (BigInt(balance.lamports) < CREATE_V2_FLOOR_LAMPORTS) {
+  if (BigInt(balance.lamports) < CREATE_V2_FLOOR_LAMPORTS + buyReserve) {
     throw statusError(
       409,
-      `Treasury needs at least ${formatSol(millisolFromLamports(CREATE_V2_FLOOR_LAMPORTS))} on mainnet to pay Pump.`,
+      `Treasury needs at least ${formatSol(millisolFromLamports(CREATE_V2_FLOOR_LAMPORTS + buyReserve))} on mainnet to pay Pump create and the $${env.launchBuyUsd} opening buy.`,
     );
   }
 
@@ -441,9 +446,54 @@ async function sendCreateV2(launchId: string) {
     throw statusError(502, "create_v2 was broadcast but not confirmed");
   }
 
-  return patch(row.id, {
-    status: "live",
+  return finishLive(row.id, {
     createTx: sig,
-    error: null,
+    buyLamports,
+    connection,
+    treasury,
+    mint: mintKp.publicKey,
   });
+}
+
+async function finishLive(
+  launchId: string,
+  opts: {
+    createTx: string | null;
+    buyLamports: bigint;
+    connection: ReturnType<typeof solanaConnection>;
+    treasury: ReturnType<typeof treasuryKeypair>;
+    mint: import("@solana/web3.js").PublicKey;
+  },
+) {
+  const current = (await load(launchId))!;
+  if (opts.buyLamports <= BigInt(0) || current.buyTx) {
+    return patch(launchId, {
+      status: "live",
+      createTx: opts.createTx ?? current.createTx,
+      error: null,
+    });
+  }
+  try {
+    const buy = await sendLaunchBuy({
+      connection: opts.connection,
+      treasury: opts.treasury,
+      mint: opts.mint,
+      budgetLamports: opts.buyLamports,
+    });
+    console.info("[launch] opening buy", { launchId, millisol: buy.millisol });
+    return patch(launchId, {
+      status: "live",
+      createTx: opts.createTx ?? current.createTx,
+      buyTx: buy.tx,
+      buyMillisol: buy.millisol,
+      error: null,
+    });
+  } catch (err) {
+    console.error("[launch] opening buy failed", launchId, failMessage(err));
+    return patch(launchId, {
+      status: "live",
+      createTx: opts.createTx ?? current.createTx,
+      error: `Minted. Opening buy failed: ${failMessage(err)}`.slice(0, 280),
+    });
+  }
 }
