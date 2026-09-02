@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CopyCa } from "@/components/copy-ca";
+import { SiteHeader } from "@/components/site-header";
 import { launchByTicker } from "@/server/launch";
 import { boardStatusLabel, pumpUrl } from "@/server/views";
 
@@ -14,9 +15,7 @@ export default async function CoinPage({ params }: { params: Promise<{ ticker: s
 
   return (
     <main className="mx-auto max-w-3xl px-5 py-10">
-      <p className="text-xs tracking-[0.3em] text-hot uppercase">
-        <Link href="/">Trender</Link>
-      </p>
+      <SiteHeader />
       <div className="mt-8 grid gap-8 sm:grid-cols-[240px_1fr]">
         {coin.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -73,6 +72,21 @@ export default async function CoinPage({ params }: { params: Promise<{ ticker: s
             {coin.tweetUrl ? (
               <a href={coin.tweetUrl} className="border border-line px-4 py-2">
                 Source post
+              </a>
+            ) : null}
+            {coin.twitter ? (
+              <a href={coin.twitter} className="border border-line px-4 py-2">
+                X
+              </a>
+            ) : null}
+            {coin.telegram ? (
+              <a href={coin.telegram} className="border border-line px-4 py-2">
+                Telegram
+              </a>
+            ) : null}
+            {coin.website ? (
+              <a href={coin.website} className="border border-line px-4 py-2">
+                Website
               </a>
             ) : null}
           </div>

@@ -13,6 +13,7 @@ export type PumpMetadataJson = {
   showName: true;
   createdOn: "https://pump.fun";
   twitter?: string;
+  telegram?: string;
   website?: string;
 };
 
@@ -95,6 +96,32 @@ export function normalizeTwitter(input: string | null | undefined): string | nul
   return `https://x.com/${handle}`;
 }
 
+const TG_HANDLE = /^[A-Za-z0-9_]{5,32}$/;
+
+export function normalizeTelegram(input: string | null | undefined): string | null {
+  const raw = (input ?? "").trim();
+  if (!raw) return null;
+  let handle = raw.replace(/^@/, "");
+  if (/^https?:\/\//i.test(raw)) {
+    let u: URL;
+    try {
+      u = new URL(raw);
+    } catch {
+      throw statusError(400, "Telegram URL is not valid");
+    }
+    const host = u.hostname.replace(/^www\./i, "").toLowerCase();
+    if (host !== "t.me" && host !== "telegram.me") {
+      throw statusError(400, "Telegram must be a t.me URL or @handle");
+    }
+    handle = u.pathname.replace(/^\/+/, "").split("/")[0] ?? "";
+  }
+  handle = handle.replace(/^@/, "");
+  if (!TG_HANDLE.test(handle)) {
+    throw statusError(400, "Telegram handle is 5–32 letters, numbers, or underscore");
+  }
+  return `https://t.me/${handle}`;
+}
+
 export function normalizeWebsite(input: string | null | undefined): string | null {
   const raw = (input ?? "").trim();
   if (!raw) return null;
@@ -126,6 +153,7 @@ export async function publishTokenMetadata(input: {
   description: string;
   imageUrl: string;
   twitter: string | null;
+  telegram?: string | null;
   website: string | null;
 }): Promise<{ url: string; json: PumpMetadataJson }> {
   if (!spacesReady()) {
@@ -143,6 +171,7 @@ export async function publishTokenMetadata(input: {
     createdOn: "https://pump.fun",
   };
   if (input.twitter) json.twitter = input.twitter;
+  if (input.telegram) json.telegram = input.telegram;
   if (input.website) json.website = input.website;
   try {
     const stored = await putPublicJson(`launches/${input.launchId}/metadata.json`, json);

@@ -80,6 +80,8 @@ export const env = {
   })(),
   appUrl: publicAppUrl(),
   trenderApiKey: optional("TRENDER_API_KEY"),
+  /** Shared password for the HTML site. GrokBot /v1 stays on TRENDER_API_KEY. */
+  sitePassword: optional("SITE_PASSWORD"),
   treasurySecret: optional("TREASURY_SECRET"),
   feeSweepMinSol: floatEnv("FEE_SWEEP_MIN_SOL", 0.05),
   /** USD of SOL to buy on the Pump curve immediately after create_v2. 0 skips the buy. */

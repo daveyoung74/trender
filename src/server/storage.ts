@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import sharp from "sharp";
@@ -65,6 +65,16 @@ async function putRemoteOrLocal(bytes: Buffer, key: string, contentType: string)
     }
   }
   return putLocal(bytes, key);
+}
+
+export async function readLocalUpload(key: string): Promise<Buffer | null> {
+  const relative = key.replace(/^\/+/, "");
+  if (!relative || relative.includes("..")) return null;
+  try {
+    return await readFile(path.join(process.cwd(), "data", "uploads", relative));
+  } catch {
+    return null;
+  }
 }
 
 export async function ingestImage(input: {

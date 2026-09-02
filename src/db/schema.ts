@@ -47,6 +47,7 @@ export const launches = mysqlTable(
     metadataUri: text("metadata_uri"),
     twitter: varchar("twitter", { length: 128 }),
     website: varchar("website", { length: 512 }),
+    telegram: varchar("telegram", { length: 128 }),
     mintAddress: varchar("mint_address", { length: 64 }),
     mintSecretSealed: text("mint_secret_sealed"),
     createTx: varchar("create_tx", { length: 128 }),

@@ -1,5 +1,5 @@
 import { statusError } from "@/server/errors";
-import { ingestImage } from "@/server/storage";
+import { ingestImage, readLocalUpload } from "@/server/storage";
 import { isPublicHttpsUrl } from "@/server/token-metadata";
 import { generateMemeImage, finalizeMemeImagePrompt } from "@/server/xai";
 import type { ImageKind } from "@/db/schema";
@@ -38,7 +38,29 @@ export async function resolveLaunchImage(opts: {
   aiPrompt: string;
   mediaUrls: string[];
   avatarUrl?: string | null;
+  providedUrl?: string | null;
+  providedKey?: string | null;
 }): Promise<{ url: string; key: string; kind: ImageKind }> {
+  const tryProvided = async () => {
+    if (opts.providedKey) {
+      const local = await readLocalUpload(opts.providedKey);
+      if (local) {
+        const stored = await ingestImage({ bytes: local, key: `launches/${opts.launchId}/image.jpg` });
+        return { ...stored, kind: opts.kind };
+      }
+    }
+    if (opts.providedUrl) {
+      try {
+        const bytes = await fetchImageBytes(opts.providedUrl);
+        const stored = await ingestImage({ bytes, key: `launches/${opts.launchId}/image.jpg` });
+        return { ...stored, kind: opts.kind };
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  };
+
   const tryPost = async () => {
     for (const url of opts.mediaUrls) {
       try {
@@ -76,11 +98,12 @@ export async function resolveLaunchImage(opts: {
   };
 
   const resolved =
-    opts.kind === "post"
+    (await tryProvided()) ??
+    (opts.kind === "post"
       ? ((await tryPost()) ?? (await tryPfp()) ?? (await tryAi()))
       : opts.kind === "pfp"
         ? ((await tryPfp()) ?? (await tryPost()) ?? (await tryAi()))
-        : ((await tryAi()) ?? (await tryPost()) ?? (await tryPfp()));
+        : ((await tryAi()) ?? (await tryPost()) ?? (await tryPfp())));
   if (!resolved) throw statusError(502, "Could not create a token image");
   return resolved;
 }

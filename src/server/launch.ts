@@ -24,6 +24,7 @@ import {
   isPublicHttpsUrl,
   normalizeDescription,
   normalizeName,
+  normalizeTelegram,
   normalizeTicker,
   normalizeTwitter,
   normalizeWebsite,
@@ -39,6 +40,13 @@ function withHttps(value: string) {
   const t = value.trim();
   if (!t) return t;
   return /^https?:\/\//i.test(t) ? t : `https://${t}`;
+}
+
+function withImageRef(value: string) {
+  const t = value.trim();
+  if (!t) return t;
+  if (t.startsWith("/")) return t;
+  return withHttps(t);
 }
 
 export const launchSeedSchema = z
@@ -64,12 +72,27 @@ export const launchSeedSchema = z
       .optional()
       .nullable(),
     description: z.string().min(1).max(280).optional().nullable(),
+    twitter: z.string().max(128).optional().nullable(),
+    website: z.string().max(512).optional().nullable(),
+    telegram: z.string().max(128).optional().nullable(),
+    image_url: z
+      .string()
+      .max(1024)
+      .optional()
+      .nullable()
+      .transform((v) => (v ? withImageRef(v) : v)),
+    image_key: z.string().max(255).optional().nullable(),
     image_prompt: z.string().min(1).max(2000).optional().nullable(),
     image_hint: z.enum(["ai", "pfp", "post", "auto"]).optional().nullable(),
   })
-  .refine((v) => Boolean(v.prompt?.trim() || v.tweet_url?.trim()), {
-    message: "prompt or tweet_url is required",
-  });
+  .refine(
+    (v) => {
+      const hasSeed = Boolean(v.prompt?.trim() || v.tweet_url?.trim());
+      const hasCopy = Boolean(v.name?.trim() && v.ticker?.trim() && v.description?.trim());
+      return hasSeed || hasCopy;
+    },
+    { message: "Need a prompt, a post, or name, ticker, and description" },
+  );
 
 export type LaunchSeed = z.infer<typeof launchSeedSchema>;
 
@@ -176,12 +199,19 @@ export async function createLaunchRow(input: LaunchSeed, idempotencyKey: string 
     input.ticker,
     input.description,
     input.image_prompt,
+    input.twitter,
+    input.website,
+    input.telegram,
   ]);
   const id = newId();
   const ticker = input.ticker ? normalizeTicker(input.ticker) : null;
   if (ticker && (await tickerTaken(ticker, id))) {
     throw statusError(409, `Ticker $${ticker} is already in use`);
   }
+  const twitter = input.twitter ? normalizeTwitter(input.twitter) : null;
+  const website = input.website ? normalizeWebsite(input.website) : null;
+  const telegram = input.telegram ? normalizeTelegram(input.telegram) : null;
+  const providedImage = Boolean(input.image_url?.trim() || input.image_key?.trim());
   try {
     await getDb().insert(launches).values({
       id,
@@ -195,8 +225,14 @@ export async function createLaunchRow(input: LaunchSeed, idempotencyKey: string 
       name: input.name ? normalizeName(input.name) : null,
       ticker,
       description: input.description ? normalizeDescription(input.description) : null,
-      imageHint: input.image_hint ?? "auto",
+      twitter,
+      website,
+      telegram,
+      imageHint: providedImage ? (input.image_hint ?? "post") : (input.image_hint ?? "auto"),
       imagePrompt: input.image_prompt?.trim() || null,
+      imageUrl: input.image_url?.trim() || null,
+      imageKey: input.image_key?.trim() || null,
+      imageKind: providedImage ? (input.image_hint === "ai" ? "ai" : "post") : null,
       dryRun: Boolean(input.dry_run),
       idempotencyKey,
     });
@@ -307,8 +343,13 @@ async function executeLaunch(initial: LaunchRow) {
 
   imagePrompt = imagePrompt || row.prompt?.trim() || "";
 
+  const providedImage = Boolean(row.imageUrl || row.imageKey);
   const kind = (
-    requestedImagePrompt ? "ai" : (imageKind ?? (hint !== "auto" ? hint : "ai"))
+    providedImage
+      ? ((row.imageKind as "ai" | "pfp" | "post" | null) ?? (hint !== "auto" && hint !== "ai" ? hint : "post"))
+      : requestedImagePrompt
+        ? "ai"
+        : (imageKind ?? (hint !== "auto" ? hint : "ai"))
   ) as "ai" | "pfp" | "post";
   row = await patch(row.id, {
     status: "publishing",
@@ -331,13 +372,16 @@ async function executeLaunch(initial: LaunchRow) {
     aiPrompt: imagePrompt,
     mediaUrls: media,
     avatarUrl: row.authorAvatarUrl,
+    providedUrl: row.imageUrl,
+    providedKey: row.imageKey,
   });
   if (!isPublicHttpsUrl(image.url)) {
     throw statusError(503, "Token image must be a public HTTPS URL on Spaces");
   }
 
-  const twitter = normalizeTwitter(row.authorHandle);
-  const website = normalizeWebsite(row.tweetUrl) ?? defaultCoinWebsite(ticker);
+  const twitter = row.twitter || normalizeTwitter(row.authorHandle);
+  const website = row.website || normalizeWebsite(row.tweetUrl) || defaultCoinWebsite(ticker);
+  const telegram = row.telegram || null;
   const published = await publishTokenMetadata({
     launchId: row.id,
     name,
@@ -345,6 +389,7 @@ async function executeLaunch(initial: LaunchRow) {
     description,
     imageUrl: image.url,
     twitter,
+    telegram,
     website,
   });
 
@@ -354,6 +399,7 @@ async function executeLaunch(initial: LaunchRow) {
     imageKind: image.kind,
     metadataUri: published.url,
     twitter,
+    telegram,
     website,
   });
 

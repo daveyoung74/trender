@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CopyCa } from "@/components/copy-ca";
+import { SiteHeader } from "@/components/site-header";
 import { listBoardLaunches } from "@/server/launch";
 import { boardStatusLabel, pumpUrl } from "@/server/views";
 
@@ -16,7 +17,7 @@ export default async function Home() {
   return (
     <main className="mx-auto max-w-5xl px-5 py-10">
       <header className="mb-10 border-b border-line pb-8">
-        <p className="text-xs tracking-[0.3em] text-hot uppercase">Trender</p>
+        <SiteHeader current="board" />
         <h1 className="mt-3 text-5xl text-fg">Coins from the timeline.</h1>
         <p className="mt-3 max-w-xl text-sm text-muted">
           GrokBot seeds a prompt or a post. Trender invents the coin, the picture, and the copy, then
@@ -25,7 +26,13 @@ export default async function Home() {
         </p>
       </header>
       {coins.length === 0 ? (
-        <p className="text-sm text-muted">Nothing on the board yet. Hit POST /v1/launch.</p>
+        <p className="text-sm text-muted">
+          Nothing on the board yet.{" "}
+          <Link href="/mint" className="text-hot">
+            Mint one
+          </Link>{" "}
+          or hit POST /v1/launch.
+        </p>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {coins.map((coin) => {

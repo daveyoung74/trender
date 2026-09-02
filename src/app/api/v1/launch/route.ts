@@ -1,28 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireApiKey } from "@/server/auth";
 import { jsonError } from "@/server/errors";
-import {
-  createLaunchRow,
-  getLaunch,
-  launchByIdempotency,
-  launchSeedSchema,
-  publicLaunchView,
-  runLaunch,
-} from "@/server/launch";
-import { enqueueLaunch, launchWorkersOnline, waitForLaunchJob } from "@/server/queue";
+import { launchSeedSchema } from "@/server/launch";
+import { submitLaunchJob } from "@/server/submit-launch";
 
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
-
-const IN_FLIGHT = new Set(["queued", "inventing", "publishing", "sending"]);
-
-async function runNow(id: string) {
-  try {
-    return await runLaunch(id);
-  } catch {
-    return getLaunch(id);
-  }
-}
 
 export async function POST(req: Request) {
   const requestId = crypto.randomUUID();
@@ -55,39 +38,13 @@ export async function POST(req: Request) {
       imagePromptLength: parsed.data.image_prompt?.length ?? 0,
       promptLength: parsed.data.prompt?.length ?? 0,
     });
-    let replay = false;
-    let row = key ? await launchByIdempotency(key) : null;
-    if (row) {
-      replay = true;
-    } else {
-      row = await createLaunchRow(parsed.data, key);
-      const queued = await enqueueLaunch(row.id);
-      const workers = await launchWorkersOnline();
-      if (!queued || !workers) {
-        row = await runNow(row.id);
-      }
-    }
 
-    const wait = parsed.data.wait !== false;
-    if (wait && IN_FLIGHT.has(row.status)) {
-      await waitForLaunchJob(row.id);
-      row = await getLaunch(row.id);
-      if (IN_FLIGHT.has(row.status)) {
-        row = await runNow(row.id);
-      }
-    }
-
-    const view = publicLaunchView(row);
-    const terminal = row.status === "live" || row.status === "ready" || row.status === "failed";
-    const status = wait && terminal ? 200 : replay && terminal ? 200 : terminal ? 200 : 202;
+    const res = await submitLaunchJob(parsed.data, key);
     console.info("[launch-api] response", {
       requestId,
-      launchId: row.id,
-      status: row.status,
-      httpStatus: status,
-      replay,
+      httpStatus: res.status,
     });
-    return NextResponse.json(view, { status });
+    return res;
   } catch (err) {
     const { status, body } = jsonError(err);
     console.error("[launch-api] failed", {

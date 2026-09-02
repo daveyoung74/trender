@@ -30,6 +30,7 @@ export function publicLaunchView(row: LaunchRow) {
     image_url: row.imageUrl,
     metadata_uri: row.metadataUri,
     twitter: row.twitter,
+    telegram: row.telegram,
     website: row.website,
     mint_address: row.mintAddress,
     create_tx: row.createTx,
