@@ -14,6 +14,7 @@ import { resolveLaunchImage } from "@/server/image";
 import { sealSecret, unsealSecret } from "@/server/keys";
 import { launchBuyReserveLamports, buildCreateAndBuyInstructions } from "@/server/launch-buy";
 import { formatSol, millisolFromLamports } from "@/server/money";
+import { ensurePumpLookupTable } from "@/server/pump-alt";
 import { requireSafeText } from "@/server/safety";
 import { launchBuyLamports } from "@/server/sol-price";
 import { spacesReady } from "@/server/storage";
@@ -421,14 +422,20 @@ async function sendCreateV2(launchId: string) {
     buyLamports,
   });
 
+  const lut = await ensurePumpLookupTable(connection, treasury);
   const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
   const message = new TransactionMessage({
     payerKey: payer,
     recentBlockhash: blockhash,
     instructions: built.instructions,
   });
-  const tx = new VersionedTransaction(message.compileToV0Message());
+  const tx = new VersionedTransaction(message.compileToV0Message([lut]));
   tx.sign([mintKp, treasury]);
+
+  const raw = tx.serialize();
+  if (raw.length > 1232) {
+    throw statusError(409, `create+buy is ${raw.length} bytes after lookup table. Solana max is 1232. Not sent.`);
+  }
 
   const sim = await connection.simulateTransaction(tx, { sigVerify: false, replaceRecentBlockhash: true });
   if (sim.value.err) {
@@ -436,7 +443,7 @@ async function sendCreateV2(launchId: string) {
     throw statusError(409, `create+buy simulation failed. ${logs || "Not sent."}`.slice(0, 280));
   }
 
-  const sig = await connection.sendRawTransaction(tx.serialize(), {
+  const sig = await connection.sendRawTransaction(raw, {
     skipPreflight: false,
     maxRetries: 3,
   });

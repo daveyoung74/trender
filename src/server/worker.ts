@@ -68,4 +68,14 @@ export async function startTrenderWorker() {
   }
   const recovered = await recoverInFlightLaunches();
   console.log("[worker] ready", { prefix, recovered });
+  void (async () => {
+    const { treasuryConfigured, treasuryKeypair } = await import("@/server/treasury");
+    if (!treasuryConfigured() || !env.solanaRpcUrl) return;
+    const { solanaConnection } = await import("@/server/chain");
+    const { ensurePumpLookupTable } = await import("@/server/pump-alt");
+    const lut = await ensurePumpLookupTable(solanaConnection(), treasuryKeypair());
+    console.log("[worker] pump alt ready", lut.key.toBase58());
+  })().catch((err) => {
+    console.error("[worker] pump alt warm failed", err);
+  });
 }

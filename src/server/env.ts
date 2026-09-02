@@ -85,6 +85,8 @@ export const env = {
   /** USD of SOL to buy on the Pump curve immediately after create_v2. 0 skips the buy. */
   launchBuyUsd: floatEnv("LAUNCH_BUY_USD", 10),
   solanaRpcUrl: optional("SOLANA_RPC_URL"),
+  /** Optional. Pin a treasury-owned Address Lookup Table used to fit create+buy in one tx. */
+  pumpAltAddress: optional("PUMP_ALT_ADDRESS"),
   xaiApiKey: optional("XAI_API_KEY"),
   xaiTextModel: optional("XAI_TEXT_MODEL") ?? "grok-4-1-fast-non-reasoning",
   xaiImageModel: optional("XAI_IMAGE_MODEL") ?? "grok-imagine-image-2.0",
