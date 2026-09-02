@@ -35,7 +35,7 @@ export async function enqueueLaunch(launchId: string, retry = false) {
   const existing = await q.getJob(launchId);
   if (existing) {
     const state = await existing.getState();
-    if (state === "active" || state === "waiting" || state === "delayed" || state === "paused") {
+    if (state === "active" || state === "waiting" || state === "delayed") {
       return true;
     }
     if (!retry) return true;

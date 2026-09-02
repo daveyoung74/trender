@@ -1,7 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["sharp", "@pump-fun/pump-sdk", "@solana/web3.js"],
+  serverExternalPackages: [
+    "sharp",
+    "@pump-fun/pump-sdk",
+    "@solana/web3.js",
+    "bullmq",
+    "ioredis",
+  ],
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "**" },
