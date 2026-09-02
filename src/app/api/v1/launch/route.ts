@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { env } from "@/server/env";
+import { getLaunchRateLimit } from "@/server/env";
 import { requireApiKey } from "@/server/auth";
 import { jsonError } from "@/server/errors";
 import {
@@ -34,9 +34,12 @@ export async function POST(req: Request) {
     if (row) {
       replay = true;
     } else {
-      const limited = await hitRateLimit("launch:global", env.launchRateLimit);
+      const limited = await hitRateLimit("launch:global", getLaunchRateLimit());
       if (!limited.ok) {
-        return NextResponse.json({ error: "Too many launches this hour" }, { status: 429 });
+        return NextResponse.json(
+          { error: `Too many launches this hour (${getLaunchRateLimit()} cap)` },
+          { status: 429 },
+        );
       }
       row = await createLaunchRow(parsed.data, key);
       const queued = await enqueueLaunch(row.id);

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getLaunchRateLimit } from "@/server/env";
 import { requireApiKey } from "@/server/auth";
 import { jsonError } from "@/server/errors";
 import { listSweepRuns, sweepMeta } from "@/server/sweep";
@@ -12,6 +13,7 @@ export async function GET(req: Request) {
     const runs = await listSweepRuns();
     return NextResponse.json({
       ...meta,
+      launch_rate_limit: getLaunchRateLimit(),
       recent_sweeps: runs.map((row) => ({
         id: row.id,
         status: row.status,

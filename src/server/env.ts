@@ -1,7 +1,14 @@
 function optional(name: string): string | undefined {
   const v = process.env[name];
   if (!v || !v.trim()) return undefined;
-  return v.trim();
+  let t = v.trim();
+  if (
+    (t.startsWith('"') && t.endsWith('"') && t.length >= 2) ||
+    (t.startsWith("'") && t.endsWith("'") && t.length >= 2)
+  ) {
+    t = t.slice(1, -1).trim();
+  }
+  return t || undefined;
 }
 
 function floatEnv(name: string, fallback: number) {
@@ -51,7 +58,6 @@ export const env = {
   trenderApiKey: optional("TRENDER_API_KEY"),
   treasurySecret: optional("TREASURY_SECRET"),
   feeSweepMinSol: floatEnv("FEE_SWEEP_MIN_SOL", 0.05),
-  launchRateLimit: intEnv("LAUNCH_RATE_LIMIT", 10),
   solanaRpcUrl: optional("SOLANA_RPC_URL"),
   xaiApiKey: optional("XAI_API_KEY"),
   xaiTextModel: optional("XAI_TEXT_MODEL") ?? "grok-4-1-fast-non-reasoning",
@@ -64,3 +70,8 @@ export const env = {
   spacesCdnBase: optional("SPACES_CDN_BASE"),
   xBearerToken: optional("X_BEARER_TOKEN"),
 };
+
+/** Read at call time so a rebuilt/restarted process picks up DigitalOcean env. */
+export function getLaunchRateLimit() {
+  return intEnv("LAUNCH_RATE_LIMIT", 10);
+}
