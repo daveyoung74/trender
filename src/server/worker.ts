@@ -32,7 +32,15 @@ export async function startTrenderWorker() {
       if (job.name === "launch") {
         const launchId = (job.data as { launchId?: string }).launchId;
         if (!launchId) throw new Error("launch job missing launchId");
-        return runLaunch(launchId);
+        console.info("[worker] launch started", { launchId, jobId: job.id });
+        const row = await runLaunch(launchId);
+        console.info("[worker] launch completed", {
+          launchId,
+          jobId: job.id,
+          status: row.status,
+          ticker: row.ticker,
+        });
+        return row;
       }
       if (job.name === "fees.sweep") {
         return runSweep("schedule");

@@ -25,16 +25,36 @@ async function runNow(id: string) {
 }
 
 export async function POST(req: Request) {
+  const requestId = crypto.randomUUID();
   try {
     requireApiKey(req);
-    const parsed = launchSeedSchema.safeParse(await req.json().catch(() => ({})));
+    const body = await req.json().catch(() => ({}));
+    const parsed = launchSeedSchema.safeParse(body);
     if (!parsed.success) {
       const message = parsed.error.issues[0]?.message ?? "Invalid launch";
+      console.warn("[launch-api] rejected", {
+        requestId,
+        message,
+        fields: body && typeof body === "object" ? Object.keys(body) : [],
+      });
       return NextResponse.json({ error: message }, { status: 400 });
     }
 
     const headerKey = req.headers.get("idempotency-key")?.trim() || null;
     const key = parsed.data.idempotency_key?.trim() || headerKey;
+    console.info("[launch-api] received", {
+      requestId,
+      idempotent: Boolean(key),
+      dryRun: parsed.data.dry_run,
+      wait: parsed.data.wait,
+      name: parsed.data.name ?? null,
+      ticker: parsed.data.ticker ?? null,
+      tweetUrl: parsed.data.tweet_url ?? null,
+      authorHandle: parsed.data.author_handle ?? null,
+      imageHint: parsed.data.image_hint ?? null,
+      imagePromptLength: parsed.data.image_prompt?.length ?? 0,
+      promptLength: parsed.data.prompt?.length ?? 0,
+    });
     let replay = false;
     let row = key ? await launchByIdempotency(key) : null;
     if (row) {
@@ -60,9 +80,21 @@ export async function POST(req: Request) {
     const view = publicLaunchView(row);
     const terminal = row.status === "live" || row.status === "ready" || row.status === "failed";
     const status = wait && terminal ? 200 : replay && terminal ? 200 : terminal ? 200 : 202;
+    console.info("[launch-api] response", {
+      requestId,
+      launchId: row.id,
+      status: row.status,
+      httpStatus: status,
+      replay,
+    });
     return NextResponse.json(view, { status });
   } catch (err) {
     const { status, body } = jsonError(err);
+    console.error("[launch-api] failed", {
+      requestId,
+      status,
+      error: body.error,
+    });
     return NextResponse.json(body, { status });
   }
 }

@@ -35,11 +35,12 @@ curl -sS -X POST "$APP_URL/v1/launch" \
     "author_handle": "foo",
     "author_avatar_url": "https://pbs.twimg.com/...",
     "media_urls": ["https://pbs.twimg.com/..."],
+    "image_prompt": "optional exact scene for AI art",
     "wait": true
   }'
 ```
 
-Send a `prompt` and/or `tweet_url`. Optional overrides: `name`, `ticker`, `description`, `image_hint` (`ai` | `pfp` | `post` | `auto`). `dry_run: true` invents and publishes metadata without sending `create_v2`.
+Send a `prompt` and/or `tweet_url`. Optional overrides: `name`, `ticker`, `description`, `image_prompt`, and `image_hint` (`ai` | `pfp` | `post` | `auto`). A supplied `image_prompt` forces AI art and is persisted with the launch. `dry_run: true` invents and publishes metadata without sending `create_v2`.
 
 Poll `GET /v1/launches/:id` if `wait` times out (about 90s). `GET /v1/launches` lists live coins. `GET /v1/meta` and `POST /v1/sweep` are authenticated.
 

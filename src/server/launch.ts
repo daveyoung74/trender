@@ -62,6 +62,7 @@ export const launchSeedSchema = z
       .optional()
       .nullable(),
     description: z.string().min(1).max(280).optional().nullable(),
+    image_prompt: z.string().min(1).max(2000).optional().nullable(),
     image_hint: z.enum(["ai", "pfp", "post", "auto"]).optional().nullable(),
   })
   .refine((v) => Boolean(v.prompt?.trim() || v.tweet_url?.trim()), {
@@ -172,6 +173,7 @@ export async function createLaunchRow(input: LaunchSeed, idempotencyKey: string 
     input.name,
     input.ticker,
     input.description,
+    input.image_prompt,
   ]);
   const id = newId();
   const ticker = input.ticker ? normalizeTicker(input.ticker) : null;
@@ -192,6 +194,7 @@ export async function createLaunchRow(input: LaunchSeed, idempotencyKey: string 
       ticker,
       description: input.description ? normalizeDescription(input.description) : null,
       imageHint: input.image_hint ?? "auto",
+      imagePrompt: input.image_prompt?.trim() || null,
       dryRun: Boolean(input.dry_run),
       idempotencyKey,
     });
@@ -260,7 +263,8 @@ async function executeLaunch(initial: LaunchRow) {
   let ticker = row.ticker;
   let description = row.description;
   let imageKind = row.imageKind as "ai" | "pfp" | "post" | null;
-  let imagePrompt = "";
+  const requestedImagePrompt = row.imagePrompt?.trim() ?? "";
+  let imagePrompt = requestedImagePrompt;
 
   if (!name || !ticker || !description) {
     const taken = await takenTickers();
@@ -288,7 +292,7 @@ async function executeLaunch(initial: LaunchRow) {
     ticker = ticker || invented.ticker;
     description = description || invented.description;
     imageKind = imageKind || invented.imagePlan.kind;
-    imagePrompt = invented.imagePlan.prompt;
+    imagePrompt = requestedImagePrompt || invented.imagePlan.prompt;
   }
 
   if (!name || !ticker || !description) {
@@ -299,7 +303,9 @@ async function executeLaunch(initial: LaunchRow) {
   }
   requireSafeText([name, ticker, description]);
 
-  const kind = (imageKind ?? (hint !== "auto" ? hint : "ai")) as "ai" | "pfp" | "post";
+  const kind = (
+    requestedImagePrompt ? "ai" : (imageKind ?? (hint !== "auto" ? hint : "ai"))
+  ) as "ai" | "pfp" | "post";
   row = await patch(row.id, {
     status: "publishing",
     name,

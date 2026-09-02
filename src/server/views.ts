@@ -25,6 +25,7 @@ export function publicLaunchView(row: LaunchRow) {
     name: row.name,
     ticker: row.ticker,
     description: row.description,
+    image_prompt: row.imagePrompt,
     image_kind: row.imageKind,
     image_url: row.imageUrl,
     metadata_uri: row.metadataUri,

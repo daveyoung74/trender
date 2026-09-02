@@ -40,6 +40,7 @@ export const launches = mysqlTable(
     ticker: varchar("ticker", { length: 10 }),
     description: varchar("description", { length: 280 }),
     imageHint: varchar("image_hint", { length: 16 }),
+    imagePrompt: text("image_prompt"),
     imageKind: varchar("image_kind", { length: 16 }),
     imageUrl: text("image_url"),
     imageKey: varchar("image_key", { length: 255 }),
