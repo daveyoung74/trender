@@ -305,6 +305,8 @@ async function executeLaunch(initial: LaunchRow) {
   }
   requireSafeText([name, ticker, description]);
 
+  imagePrompt = imagePrompt || row.prompt?.trim() || "";
+
   const kind = (
     requestedImagePrompt ? "ai" : (imageKind ?? (hint !== "auto" ? hint : "ai"))
   ) as "ai" | "pfp" | "post";
@@ -314,6 +316,7 @@ async function executeLaunch(initial: LaunchRow) {
     ticker,
     description,
     imageKind: kind,
+    imagePrompt: imagePrompt || null,
   });
 
   if (!spacesReady()) {

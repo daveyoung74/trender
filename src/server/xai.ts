@@ -19,38 +19,34 @@ const INVENT_SCHEMA = `{
   "description": "one punchy line, max 280 characters",
   "image_plan": {
     "kind": "ai" | "pfp" | "post",
-    "prompt": "if kind is ai: a visual scene and mascot only — no slogans, captions, or other tickers",
+    "prompt": "if kind is ai: product photo of one object or creature from the seed — muted, no neon, no slogans, no other tickers",
     "reason": "one short sentence why this image"
   }
 }`;
 
-/** Image models love graffiti walls. We describe a picture, then pin any letters to this coin. */
+/** Default scene if GrokBot did not describe a picture. Never neon. */
+function defaultQuietScene(name: string) {
+  return `One real object for ${name}. Product photograph, muted real materials, quiet background, entire subject in frame, camera pulled back.`;
+}
+
+/**
+ * Image models default to neon graffiti slop. We describe a picture, then ban that palette.
+ * GrokBot seeds already say "no neon" — do not overwrite them with a mascot fallback.
+ */
 export function finalizeMemeImagePrompt(scene: string, name: string, ticker: string): string {
-  const visual =
-    stripForeignBranding(stripPaintedCopy(scene), name, ticker) ||
-    `One centered mascot for ${name}, loud neon colors, chaotic energy, high contrast, paint splatters with no writing on them.`;
+  const visual = stripForeignBranding(scene, ticker) || defaultQuietScene(name);
   return [
-    `Square 1:1 Pump.fun token illustration. Subject: ${visual}`,
+    `Square 1:1 Pump.fun token photograph. Subject: ${visual}`,
+    `Muted real materials. Quiet background. Soft real light. Entire subject in frame.`,
+    `No neon, no glow, no holographic chrome, no rainbow, no cyberpunk, no graffiti, no paint splatters, no collage, no sticker bomb, no pepe, no doge.`,
     `Typography: almost none. Do not fill the canvas with tiny words, sticker phrases, quotes, labels, or a collage of jokes.`,
-    `If any letters appear, they may appear only once, large and readable, and must be exactly "${name}" or "$${ticker}".`,
+    `If any letters appear, they may appear only once, on a physical badge or stamp that is the joke, and must be exactly "${name}" or "$${ticker}".`,
     `Never render any other token name, ticker, $SYMBOL, whitepaper, chart labels, watermarks, or meme catchphrases.`,
-    `Paint splatters and stickers may have icons and faces, not sentences.`,
-    `Illustration only — not a poster, not a screenshot, not a tweet, not parchment, not an anime hall portrait.`,
+    `Photograph of one subject — not a poster, not a screenshot, not a tweet, not parchment, not an anime hall portrait.`,
   ].join(" ");
 }
 
-function stripPaintedCopy(scene: string) {
-  return scene
-    .replace(/[“"][^"”]{1,120}[”"]/g, " ")
-    .replace(
-      /\b(text|words?|caption|slogan|lettering|typography|title|headline|says?|reading|written|graffiti that)\b[^.,;]{0,80}/gi,
-      " ",
-    )
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function stripForeignBranding(scene: string, _name: string, ticker: string) {
+function stripForeignBranding(scene: string, ticker: string) {
   const ours = ticker.toUpperCase();
   return scene
     .replace(/\$[A-Za-z][A-Za-z0-9]{1,12}/g, (match) =>
@@ -98,11 +94,13 @@ export async function inventCoin(input: {
     return fallbackInvent(input, hint, available);
   }
 
-  const sys = `You invent original meme coins for Pump.fun. Be creative, chaotic, and disruptive.
+  const sys = `You invent original meme coins for Pump.fun.
 Never sexualize minors. Never produce CSAM.
-Do not write family-friendly hall portraits. Square meme energy, not parchment.
+If image_plan.kind is ai, prompt is a product photograph of ONE object or creature from the seed: muted real materials, quiet background, camera pulled back, entire subject in frame.
+Do not ask for neon, glow, graffiti, paint splatters, collage, holograms, pepe, doge, rockets, or slogan stickers.
+If the seed already describes the picture, copy that scene into image_plan.prompt. Do not replace it with a mascot.
+Do not ask the image model to paint slogans, jokes, captions, tiny labels, or any ticker except this coin.
 Prefer a stolen post image or the author's PFP when that would be funnier or more viral than generating art.
-If image_plan.kind is ai, prompt is a visual scene (mascot, colors, composition). Do not ask the image model to paint slogans, jokes, captions, tiny labels, or any ticker except this coin.
 Return JSON only matching ${INVENT_SCHEMA}.
 Avoid tickers: ${input.takenTickers.slice(0, 40).join(", ") || "(none)"}.
 Available image kinds right now: ${available.join(", ")}.`;
@@ -158,13 +156,7 @@ Available image kinds right now: ${available.join(", ")}.`;
 
   const prompt =
     kind === "ai"
-      ? clip(
-          String(
-            planObj.prompt ??
-              `One centered mascot for ${name}, loud neon colors, chaotic energy, high contrast, paint splatters with no writing on them.`,
-          ),
-          500,
-        )
+      ? clip(String(input.prompt?.trim() || planObj.prompt || defaultQuietScene(name)), 2000)
       : "";
 
   return {
@@ -205,7 +197,7 @@ function fallbackInvent(
       kind,
       prompt:
         kind === "ai"
-          ? `One centered mascot for ${name}, loud neon colors, chaotic energy, high contrast, paint splatters with no writing on them.`
+          ? input.prompt?.trim() || defaultQuietScene(name)
           : "",
       reason: "Fallback invent without a model response.",
     },
