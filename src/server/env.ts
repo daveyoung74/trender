@@ -19,11 +19,6 @@ function floatEnv(name: string, fallback: number) {
   return n;
 }
 
-function intEnv(name: string, fallback: number) {
-  const n = Math.floor(floatEnv(name, fallback));
-  return n > 0 ? n : fallback;
-}
-
 function publicAppUrl(): string {
   const raw = optional("APP_URL") ?? optional("NEXT_PUBLIC_APP_URL");
   if (raw) {
@@ -70,8 +65,3 @@ export const env = {
   spacesCdnBase: optional("SPACES_CDN_BASE"),
   xBearerToken: optional("X_BEARER_TOKEN"),
 };
-
-/** Read at call time so a rebuilt/restarted process picks up DigitalOcean env. */
-export function getLaunchRateLimit() {
-  return intEnv("LAUNCH_RATE_LIMIT", 10);
-}
