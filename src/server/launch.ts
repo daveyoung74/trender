@@ -12,9 +12,8 @@ import { getAppRedis, redisKey } from "@/server/redis";
 import { newId } from "@/server/ids";
 import { resolveLaunchImage } from "@/server/image";
 import { sealSecret, unsealSecret } from "@/server/keys";
-import { launchBuyReserveLamports, sendLaunchBuy } from "@/server/launch-buy";
+import { launchBuyReserveLamports, buildCreateAndBuyInstructions } from "@/server/launch-buy";
 import { formatSol, millisolFromLamports } from "@/server/money";
-import { buildCreateV2Instruction, PUMP_PROGRAM } from "@/server/pump";
 import { requireSafeText } from "@/server/safety";
 import { launchBuyLamports } from "@/server/sol-price";
 import { spacesReady } from "@/server/storage";
@@ -396,7 +395,11 @@ async function sendCreateV2(launchId: string) {
 
   const mintInfo = await connection.getAccountInfo(mintKp.publicKey);
   if (mintInfo) {
-    return finishLive(row.id, { createTx: row.createTx, buyLamports, connection, treasury, mint: mintKp.publicKey });
+    return patch(row.id, {
+      status: "live",
+      createTx: row.createTx,
+      error: null,
+    });
   }
 
   const balance = await onChainBalance(payer.toBase58());
@@ -407,23 +410,22 @@ async function sendCreateV2(launchId: string) {
     );
   }
 
-  const ix = await buildCreateV2Instruction({
+  const built = await buildCreateAndBuyInstructions({
+    connection,
     mint: mintKp.publicKey,
-    creator: payer,
     user: payer,
+    creator: payer,
     name,
     symbol: ticker,
     uri: metadataUri,
+    buyLamports,
   });
-  if (ix.programId.toBase58() !== PUMP_PROGRAM) {
-    throw statusError(409, "Built create_v2 is not the Pump program. Not sent.");
-  }
 
   const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
   const message = new TransactionMessage({
     payerKey: payer,
     recentBlockhash: blockhash,
-    instructions: [ix],
+    instructions: built.instructions,
   });
   const tx = new VersionedTransaction(message.compileToV0Message());
   tx.sign([mintKp, treasury]);
@@ -431,7 +433,7 @@ async function sendCreateV2(launchId: string) {
   const sim = await connection.simulateTransaction(tx, { sigVerify: false, replaceRecentBlockhash: true });
   if (sim.value.err) {
     const logs = (sim.value.logs ?? []).slice(-4).join(" ");
-    throw statusError(409, `create_v2 simulation failed. ${logs || "Not sent."}`.slice(0, 280));
+    throw statusError(409, `create+buy simulation failed. ${logs || "Not sent."}`.slice(0, 280));
   }
 
   const sig = await connection.sendRawTransaction(tx.serialize(), {
@@ -443,57 +445,14 @@ async function sendCreateV2(launchId: string) {
     "confirmed",
   );
   if (confirmation.value.err) {
-    throw statusError(502, "create_v2 was broadcast but not confirmed");
+    throw statusError(502, "create+buy was broadcast but not confirmed");
   }
 
-  return finishLive(row.id, {
+  return patch(row.id, {
+    status: "live",
     createTx: sig,
-    buyLamports,
-    connection,
-    treasury,
-    mint: mintKp.publicKey,
+    buyTx: built.millisol > 0 ? sig : null,
+    buyMillisol: built.millisol,
+    error: null,
   });
-}
-
-async function finishLive(
-  launchId: string,
-  opts: {
-    createTx: string | null;
-    buyLamports: bigint;
-    connection: ReturnType<typeof solanaConnection>;
-    treasury: ReturnType<typeof treasuryKeypair>;
-    mint: import("@solana/web3.js").PublicKey;
-  },
-) {
-  const current = (await load(launchId))!;
-  if (opts.buyLamports <= BigInt(0) || current.buyTx) {
-    return patch(launchId, {
-      status: "live",
-      createTx: opts.createTx ?? current.createTx,
-      error: null,
-    });
-  }
-  try {
-    const buy = await sendLaunchBuy({
-      connection: opts.connection,
-      treasury: opts.treasury,
-      mint: opts.mint,
-      budgetLamports: opts.buyLamports,
-    });
-    console.info("[launch] opening buy", { launchId, millisol: buy.millisol });
-    return patch(launchId, {
-      status: "live",
-      createTx: opts.createTx ?? current.createTx,
-      buyTx: buy.tx,
-      buyMillisol: buy.millisol,
-      error: null,
-    });
-  } catch (err) {
-    console.error("[launch] opening buy failed", launchId, failMessage(err));
-    return patch(launchId, {
-      status: "live",
-      createTx: opts.createTx ?? current.createTx,
-      error: `Minted. Opening buy failed: ${failMessage(err)}`.slice(0, 280),
-    });
-  }
 }

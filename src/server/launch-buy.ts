@@ -2,12 +2,10 @@ import BN from "bn.js";
 import {
   ComputeBudgetProgram,
   PublicKey,
-  TransactionMessage,
-  VersionedTransaction,
   type Connection,
-  type Keypair,
+  type TransactionInstruction,
 } from "@solana/web3.js";
-import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { NATIVE_MINT } from "@solana/spl-token";
 import {
   OnlinePumpSdk,
   PumpSdk,
@@ -15,35 +13,44 @@ import {
 } from "@pump-fun/pump-sdk";
 import { millisolFromLamports } from "@/server/money";
 import { statusError } from "@/server/errors";
+import { PUMP_PROGRAM } from "@/server/pump";
 
-const BUY_GAS_LAMPORTS = BigInt(5_000_000);
-const SLIPPAGE_PERCENT = 2;
-
-function tokenProgramOf(owner: PublicKey) {
-  if (owner.equals(TOKEN_2022_PROGRAM_ID)) return TOKEN_2022_PROGRAM_ID;
-  if (owner.equals(TOKEN_PROGRAM_ID)) return TOKEN_PROGRAM_ID;
-  throw statusError(409, "Mint is not a Token or Token-2022 mint. Launch buy not sent.");
-}
+const BUY_GAS_LAMPORTS = BigInt(8_000_000);
 
 export function launchBuyReserveLamports(buyLamports: bigint) {
   if (buyLamports <= BigInt(0)) return BigInt(0);
-  return buyLamports + BUY_GAS_LAMPORTS;
+  const slip = buyLamports / BigInt(100);
+  return buyLamports + slip + BUY_GAS_LAMPORTS;
 }
 
-export async function sendLaunchBuy(opts: {
+export async function buildCreateAndBuyInstructions(opts: {
   connection: Connection;
-  treasury: Keypair;
   mint: PublicKey;
-  budgetLamports: bigint;
-}): Promise<{ tx: string; millisol: number }> {
-  if (opts.budgetLamports <= BigInt(0)) {
-    throw statusError(409, "Launch buy budget is empty");
+  user: PublicKey;
+  creator: PublicKey;
+  name: string;
+  symbol: string;
+  uri: string;
+  buyLamports: bigint;
+}): Promise<{ instructions: TransactionInstruction[]; millisol: number }> {
+  const sdk = new PumpSdk();
+  const compute = ComputeBudgetProgram.setComputeUnitLimit({ units: 600_000 });
+
+  if (opts.buyLamports <= BigInt(0)) {
+    const createIx = await sdk.createV2Instruction({
+      mint: opts.mint,
+      name: opts.name,
+      symbol: opts.symbol,
+      uri: opts.uri,
+      creator: opts.creator,
+      user: opts.user,
+      mayhemMode: false,
+    });
+    if (createIx.programId.toBase58() !== PUMP_PROGRAM) {
+      throw statusError(409, "Built create_v2 is not the Pump program. Not sent.");
+    }
+    return { instructions: [compute, createIx], millisol: 0 };
   }
-  const mintInfo = await opts.connection.getAccountInfo(opts.mint);
-  if (!mintInfo) throw statusError(409, "Mint is not on-chain. Launch buy not sent.");
-  const tokenProgram = tokenProgramOf(mintInfo.owner);
-  const user = opts.treasury.publicKey;
-  const solIn = new BN(opts.budgetLamports.toString());
 
   const online = new OnlinePumpSdk(opts.connection);
   const global = await online.fetchGlobal();
@@ -53,66 +60,41 @@ export async function sendLaunchBuy(opts: {
   } catch {
     feeConfig = null;
   }
-  const { bondingCurveAccountInfo, bondingCurve, associatedUserAccountInfo } = await online.fetchBuyState(
-    opts.mint,
-    user,
-    tokenProgram,
-  );
-  if (bondingCurve.complete) {
-    throw statusError(409, "Curve is complete. Opening buy stays on the Pump curve.");
-  }
-  const tokenAmount = getBuyTokenAmountFromSolAmount({
+  const solAmount = new BN(opts.buyLamports.toString());
+  const amount = getBuyTokenAmountFromSolAmount({
     global,
     feeConfig,
-    mintSupply: bondingCurve.tokenTotalSupply,
-    bondingCurve,
-    amount: solIn,
-    quoteMint: bondingCurve.quoteMint,
+    mintSupply: null,
+    bondingCurve: null,
+    amount: solAmount,
+    quoteMint: NATIVE_MINT,
   });
-  if (tokenAmount.isZero() || tokenAmount.isNeg()) {
-    throw statusError(409, "Curve quote returned no tokens. Launch buy not sent.");
+  if (amount.isZero() || amount.isNeg()) {
+    throw statusError(409, "Opening-buy quote returned no tokens. Not sent.");
   }
 
-  const sdk = new PumpSdk();
-  const buyIxs = await sdk.buyInstructions({
+  const ixs = await sdk.createV2AndBuyInstructions({
     global,
-    bondingCurveAccountInfo,
-    bondingCurve,
-    associatedUserAccountInfo,
     mint: opts.mint,
-    user,
-    amount: tokenAmount,
-    solAmount: solIn,
-    slippage: SLIPPAGE_PERCENT,
-    tokenProgram,
+    name: opts.name,
+    symbol: opts.symbol,
+    uri: opts.uri,
+    creator: opts.creator,
+    user: opts.user,
+    amount,
+    solAmount,
+    mayhemMode: false,
   });
-  const compute = ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 });
-  const { blockhash, lastValidBlockHeight } = await opts.connection.getLatestBlockhash("confirmed");
-  const message = new TransactionMessage({
-    payerKey: user,
-    recentBlockhash: blockhash,
-    instructions: [compute, ...buyIxs],
-  });
-  const tx = new VersionedTransaction(message.compileToV0Message());
-  tx.sign([opts.treasury]);
-
-  const sim = await opts.connection.simulateTransaction(tx, { sigVerify: false, replaceRecentBlockhash: true });
-  if (sim.value.err) {
-    const logs = (sim.value.logs ?? []).slice(-4).join(" ");
-    throw statusError(409, `Launch buy simulation failed. ${logs || "Not sent."}`.slice(0, 280));
+  if (!ixs[0] || ixs[0].programId.toBase58() !== PUMP_PROGRAM) {
+    throw statusError(409, "Built create_v2 is not the Pump program. Not sent.");
+  }
+  const buyIx = ixs.find((ix, i) => i > 0 && ix.programId.toBase58() === PUMP_PROGRAM);
+  if (!buyIx) {
+    throw statusError(409, "Built opening buy is not the Pump program. Not sent.");
   }
 
-  const sig = await opts.connection.sendRawTransaction(tx.serialize(), {
-    skipPreflight: false,
-    maxRetries: 3,
-  });
-  const confirmation = await opts.connection.confirmTransaction(
-    { signature: sig, blockhash, lastValidBlockHeight },
-    "confirmed",
-  );
-  if (confirmation.value.err) {
-    throw statusError(502, "Launch buy was broadcast but not confirmed");
-  }
-
-  return { tx: sig, millisol: millisolFromLamports(opts.budgetLamports) };
+  return {
+    instructions: [compute, ...ixs],
+    millisol: millisolFromLamports(opts.buyLamports),
+  };
 }

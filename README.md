@@ -17,7 +17,7 @@ The Next.js process consumes launch jobs and the hourly fee sweep. You do not ne
 
 Compose maps MySQL to `3307` and Redis to `6380` so it does not collide with Champions on `3306` / `6379`.
 
-Fund the treasury address (from `GET /v1/meta`) with mainnet SOL. Pump create needs about 0.03 SOL of rent plus a little gas. After mint, the treasury also buys about `LAUNCH_BUY_USD` (default $10) of the coin on the Pump curve. No buybacks. No creator-fee split.
+Fund the treasury address (from `GET /v1/meta`) with mainnet SOL. Pump create needs about 0.03 SOL of rent plus a little gas. The treasury also buys about `LAUNCH_BUY_USD` (default $10) of the coin on the Pump curve in the same transaction as `create_v2`. No buybacks. No creator-fee split.
 
 ## GrokBot
 
