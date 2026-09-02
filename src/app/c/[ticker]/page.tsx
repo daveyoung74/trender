@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CopyCa } from "@/components/copy-ca";
 import { launchByTicker } from "@/server/launch";
-import { pumpUrl } from "@/server/views";
+import { boardStatusLabel, pumpUrl } from "@/server/views";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +26,7 @@ export default async function CoinPage({ params }: { params: Promise<{ ticker: s
         )}
         <div>
           <p className="text-[10px] uppercase tracking-widest text-muted">
-            {coin.status === "ready" ? "Proposed" : coin.status === "live" ? "Live" : coin.status}
+            {boardStatusLabel(coin.status)}
           </p>
           <p className="mt-2 text-hot">${coin.ticker}</p>
           <h1 className="mt-2 text-4xl">{coin.name}</h1>

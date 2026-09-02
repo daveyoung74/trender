@@ -18,15 +18,28 @@ export function getQueue() {
   return queue;
 }
 
-export async function enqueueLaunch(launchId: string) {
+export async function launchWorkersOnline() {
+  const q = getQueue();
+  if (!q) return false;
+  try {
+    const workers = await q.getWorkers();
+    return workers.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+export async function enqueueLaunch(launchId: string, retry = false) {
   const q = getQueue();
   if (!q) return false;
   const existing = await q.getJob(launchId);
   if (existing) {
     const state = await existing.getState();
-    if (state === "completed" || state === "failed" || state === "active" || state === "waiting") {
+    if (state === "active" || state === "waiting" || state === "delayed" || state === "paused") {
       return true;
     }
+    if (!retry) return true;
+    await existing.remove().catch(() => undefined);
   }
   await q.add(
     "launch",

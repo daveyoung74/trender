@@ -9,12 +9,20 @@ import {
   publicLaunchView,
   runLaunch,
 } from "@/server/launch";
-import { enqueueLaunch, waitForLaunchJob } from "@/server/queue";
+import { enqueueLaunch, launchWorkersOnline, waitForLaunchJob } from "@/server/queue";
 
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
 
 const IN_FLIGHT = new Set(["queued", "inventing", "publishing", "sending"]);
+
+async function runNow(id: string) {
+  try {
+    return await runLaunch(id);
+  } catch {
+    return getLaunch(id);
+  }
+}
 
 export async function POST(req: Request) {
   try {
@@ -34,12 +42,9 @@ export async function POST(req: Request) {
     } else {
       row = await createLaunchRow(parsed.data, key);
       const queued = await enqueueLaunch(row.id);
-      if (!queued) {
-        try {
-          row = await runLaunch(row.id);
-        } catch {
-          row = await getLaunch(row.id);
-        }
+      const workers = await launchWorkersOnline();
+      if (!queued || !workers) {
+        row = await runNow(row.id);
       }
     }
 
@@ -47,12 +52,8 @@ export async function POST(req: Request) {
     if (wait && IN_FLIGHT.has(row.status)) {
       await waitForLaunchJob(row.id);
       row = await getLaunch(row.id);
-      if (row.status === "queued") {
-        try {
-          row = await runLaunch(row.id);
-        } catch {
-          row = await getLaunch(row.id);
-        }
+      if (IN_FLIGHT.has(row.status)) {
+        row = await runNow(row.id);
       }
     }
 

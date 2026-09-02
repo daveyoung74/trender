@@ -6,7 +6,9 @@ import { launches } from "@/db/schema";
 import type { LaunchRow } from "@/server/views";
 import { publicLaunchView } from "@/server/views";
 import { CREATE_V2_FLOOR_LAMPORTS, onChainBalance, solanaConnection } from "@/server/chain";
+import { env } from "@/server/env";
 import { statusError } from "@/server/errors";
+import { getAppRedis, redisKey } from "@/server/redis";
 import { newId } from "@/server/ids";
 import { resolveLaunchImage } from "@/server/image";
 import { sealSecret, unsealSecret } from "@/server/keys";
@@ -98,13 +100,27 @@ export async function listLiveLaunches(limit = 40) {
     .limit(limit);
 }
 
+function inFlightStatus() {
+  return or(
+    eq(launches.status, "queued"),
+    eq(launches.status, "inventing"),
+    eq(launches.status, "publishing"),
+    eq(launches.status, "sending"),
+  );
+}
+
 export async function listBoardLaunches(limit = 48) {
   return getDb()
     .select()
     .from(launches)
-    .where(or(eq(launches.status, "live"), eq(launches.status, "ready")))
+    .where(or(eq(launches.status, "live"), eq(launches.status, "ready"), inFlightStatus()))
     .orderBy(desc(launches.createdAt))
     .limit(limit);
+}
+
+export async function listInFlightLaunchIds() {
+  const rows = await getDb().select({ id: launches.id }).from(launches).where(inFlightStatus());
+  return rows.map((row) => row.id);
 }
 
 export async function launchByTicker(ticker: string) {
@@ -189,16 +205,35 @@ export async function createLaunchRow(input: LaunchSeed, idempotencyKey: string 
   return (await load(id))!;
 }
 
+async function tryLockLaunch(id: string) {
+  if (!env.redisUrl) return true;
+  const ok = await getAppRedis().set(redisKey("launch", "lock", id), "1", "EX", 300, "NX");
+  return ok === "OK";
+}
+
+async function unlockLaunch(id: string) {
+  if (!env.redisUrl) return;
+  await getAppRedis().del(redisKey("launch", "lock", id));
+}
+
 export async function runLaunch(launchId: string) {
-  const existing = await load(launchId);
-  if (!existing) throw statusError(404, "Launch not found");
-  if (existing.status === "live" || existing.status === "ready") return existing;
-  if (existing.status === "failed") return existing;
+  const locked = await tryLockLaunch(launchId);
+  if (!locked) {
+    const row = await load(launchId);
+    if (!row) throw statusError(404, "Launch not found");
+    return row;
+  }
   try {
+    const existing = await load(launchId);
+    if (!existing) throw statusError(404, "Launch not found");
+    if (existing.status === "live" || existing.status === "ready") return existing;
+    if (existing.status === "failed") return existing;
     return await executeLaunch(existing);
   } catch (err) {
     await patch(launchId, { status: "failed", error: failMessage(err) });
     throw err;
+  } finally {
+    await unlockLaunch(launchId);
   }
 }
 

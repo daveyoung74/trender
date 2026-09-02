@@ -7,6 +7,12 @@ export function pumpUrl(mintAddress: string | null | undefined) {
   return `https://pump.fun/coin/${mintAddress}`;
 }
 
+export function boardStatusLabel(status: string) {
+  if (status === "ready") return "Proposed";
+  if (status === "live") return "Live";
+  return "Queued";
+}
+
 export function publicLaunchView(row: LaunchRow) {
   return {
     id: row.id,

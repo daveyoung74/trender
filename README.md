@@ -11,8 +11,9 @@ cp .env.example .env
 npm install
 npx drizzle-kit push --force
 npm run dev
-npm run worker
 ```
+
+The Next.js process consumes launch jobs and the hourly fee sweep. You do not need a separate DigitalOcean worker. `npm run worker` is optional if you want a second consumer locally.
 
 Compose maps MySQL to `3307` and Redis to `6380` so it does not collide with Champions on `3306` / `6379`.
 
