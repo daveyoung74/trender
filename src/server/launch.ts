@@ -315,6 +315,8 @@ async function executeLaunch(initial: LaunchRow) {
   const image = await resolveLaunchImage({
     launchId: row.id,
     kind,
+    name,
+    ticker,
     aiPrompt: imagePrompt,
     mediaUrls: media,
     avatarUrl: row.authorAvatarUrl,

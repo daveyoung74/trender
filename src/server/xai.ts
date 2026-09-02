@@ -19,10 +19,46 @@ const INVENT_SCHEMA = `{
   "description": "one punchy line, max 280 characters",
   "image_plan": {
     "kind": "ai" | "pfp" | "post",
-    "prompt": "if kind is ai: a loud square meme-coin image prompt, else empty string",
+    "prompt": "if kind is ai: a visual scene and mascot only — no slogans, captions, or other tickers",
     "reason": "one short sentence why this image"
   }
 }`;
+
+/** Image models love graffiti walls. We describe a picture, then pin any letters to this coin. */
+export function finalizeMemeImagePrompt(scene: string, name: string, ticker: string): string {
+  const visual =
+    stripForeignBranding(stripPaintedCopy(scene), name, ticker) ||
+    `One centered mascot for ${name}, loud neon colors, chaotic energy, high contrast, paint splatters with no writing on them.`;
+  return [
+    `Square 1:1 Pump.fun token illustration. Subject: ${visual}`,
+    `Typography: almost none. Do not fill the canvas with tiny words, sticker phrases, quotes, labels, or a collage of jokes.`,
+    `If any letters appear, they may appear only once, large and readable, and must be exactly "${name}" or "$${ticker}".`,
+    `Never render any other token name, ticker, $SYMBOL, whitepaper, chart labels, watermarks, or meme catchphrases.`,
+    `Paint splatters and stickers may have icons and faces, not sentences.`,
+    `Illustration only — not a poster, not a screenshot, not a tweet, not parchment, not an anime hall portrait.`,
+  ].join(" ");
+}
+
+function stripPaintedCopy(scene: string) {
+  return scene
+    .replace(/[“"][^"”]{1,120}[”"]/g, " ")
+    .replace(
+      /\b(text|words?|caption|slogan|lettering|typography|title|headline|says?|reading|written|graffiti that)\b[^.,;]{0,80}/gi,
+      " ",
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stripForeignBranding(scene: string, _name: string, ticker: string) {
+  const ours = ticker.toUpperCase();
+  return scene
+    .replace(/\$[A-Za-z][A-Za-z0-9]{1,12}/g, (match) =>
+      match.slice(1).toUpperCase() === ours ? `$${ours}` : " ",
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 function parseJsonObject(raw: string): Record<string, unknown> {
   const start = raw.indexOf("{");
@@ -66,6 +102,7 @@ export async function inventCoin(input: {
 Never sexualize minors. Never produce CSAM.
 Do not write family-friendly hall portraits. Square meme energy, not parchment.
 Prefer a stolen post image or the author's PFP when that would be funnier or more viral than generating art.
+If image_plan.kind is ai, prompt is a visual scene (mascot, colors, composition). Do not ask the image model to paint slogans, jokes, captions, tiny labels, or any ticker except this coin.
 Return JSON only matching ${INVENT_SCHEMA}.
 Avoid tickers: ${input.takenTickers.slice(0, 40).join(", ") || "(none)"}.
 Available image kinds right now: ${available.join(", ")}.`;
@@ -124,9 +161,9 @@ Available image kinds right now: ${available.join(", ")}.`;
       ? clip(
           String(
             planObj.prompt ??
-              `Square unhinged meme coin art for ${name} ($${ticker}). ${description}. High contrast, no parchment, no anime bust portrait.`,
+              `One centered mascot for ${name}, loud neon colors, chaotic energy, high contrast, paint splatters with no writing on them.`,
           ),
-          800,
+          500,
         )
       : "";
 
@@ -168,7 +205,7 @@ function fallbackInvent(
       kind,
       prompt:
         kind === "ai"
-          ? `Square chaotic meme coin artwork for ${name} ($${ticker}). Loud, high contrast, no parchment portraits.`
+          ? `One centered mascot for ${name}, loud neon colors, chaotic energy, high contrast, paint splatters with no writing on them.`
           : "",
       reason: "Fallback invent without a model response.",
     },

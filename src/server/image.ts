@@ -1,7 +1,7 @@
 import { statusError } from "@/server/errors";
 import { ingestImage } from "@/server/storage";
 import { isPublicHttpsUrl } from "@/server/token-metadata";
-import { generateMemeImage } from "@/server/xai";
+import { generateMemeImage, finalizeMemeImagePrompt } from "@/server/xai";
 import type { ImageKind } from "@/db/schema";
 
 const MAX_BYTES = 8 * 1024 * 1024;
@@ -33,6 +33,8 @@ export async function fetchImageBytes(url: string): Promise<Buffer> {
 export async function resolveLaunchImage(opts: {
   launchId: string;
   kind: ImageKind;
+  name: string;
+  ticker: string;
   aiPrompt: string;
   mediaUrls: string[];
   avatarUrl?: string | null;
@@ -64,8 +66,7 @@ export async function resolveLaunchImage(opts: {
   const tryAi = async () => {
     try {
       const bytes = await generateMemeImage(
-        opts.aiPrompt ||
-          "Square unhinged meme coin artwork. High contrast, chaotic, no parchment portrait.",
+        finalizeMemeImagePrompt(opts.aiPrompt, opts.name, opts.ticker),
       );
       const stored = await ingestImage({ bytes, key: `launches/${opts.launchId}/image.jpg` });
       return { ...stored, kind: "ai" as const };
