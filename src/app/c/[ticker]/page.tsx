@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CopyCa } from "@/components/copy-ca";
 import { SiteHeader } from "@/components/site-header";
