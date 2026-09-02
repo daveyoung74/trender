@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { CopyCa } from "@/components/copy-ca";
 import { launchByTicker } from "@/server/launch";
 import { pumpUrl } from "@/server/views";
 
@@ -34,6 +35,14 @@ export default async function CoinPage({ params }: { params: Promise<{ ticker: s
             <p className="mt-4 text-xs text-muted">Invented and pictured. Not minted on Pump yet.</p>
           ) : null}
           <dl className="mt-6 space-y-2 text-xs text-muted">
+            {coin.mintAddress ? (
+              <div>
+                <dt className="uppercase tracking-widest">CA</dt>
+                <dd className="mt-1 text-fg">
+                  <CopyCa address={coin.mintAddress} />
+                </dd>
+              </div>
+            ) : null}
             {coin.imageKind ? (
               <div>
                 <dt className="uppercase tracking-widest">Image</dt>

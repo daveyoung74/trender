@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CopyCa } from "@/components/copy-ca";
 import { listBoardLaunches } from "@/server/launch";
 import { pumpUrl } from "@/server/views";
 
@@ -51,6 +52,11 @@ export default async function Home() {
                     ) : null}
                   </div>
                 </Link>
+                {coin.mintAddress ? (
+                  <div className="border-t border-line px-3 py-2">
+                    <CopyCa address={coin.mintAddress} />
+                  </div>
+                ) : null}
               </li>
             );
           })}

@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, desc, eq, ne, or } from "drizzle-orm";
 import { Keypair, TransactionMessage, VersionedTransaction } from "@solana/web3.js";
 import { z } from "zod";
 import { getDb } from "@/db";
@@ -30,8 +30,6 @@ import { hydrateTweet } from "@/server/x";
 import { inventCoin } from "@/server/xai";
 
 export { publicLaunchView };
-
-const ACTIVE_TICKER = ["queued", "inventing", "publishing", "sending", "live"] as const;
 
 function withHttps(value: string) {
   const t = value.trim();
@@ -104,7 +102,7 @@ export async function listBoardLaunches(limit = 48) {
   return getDb()
     .select()
     .from(launches)
-    .where(inArray(launches.status, ["live", "ready"]))
+    .where(or(eq(launches.status, "live"), eq(launches.status, "ready")))
     .orderBy(desc(launches.createdAt))
     .limit(limit);
 }
@@ -120,11 +118,21 @@ export async function launchByTicker(ticker: string) {
   );
 }
 
+function activeTickerStatus() {
+  return or(
+    eq(launches.status, "queued"),
+    eq(launches.status, "inventing"),
+    eq(launches.status, "publishing"),
+    eq(launches.status, "sending"),
+    eq(launches.status, "live"),
+  );
+}
+
 async function tickerTaken(ticker: string, exceptId: string) {
   const rows = await getDb()
     .select({ id: launches.id, ticker: launches.ticker, status: launches.status })
     .from(launches)
-    .where(and(eq(launches.ticker, ticker), ne(launches.id, exceptId), inArray(launches.status, [...ACTIVE_TICKER])));
+    .where(and(eq(launches.ticker, ticker), ne(launches.id, exceptId), activeTickerStatus()));
   return rows.length > 0;
 }
 
@@ -132,7 +140,7 @@ async function takenTickers() {
   const rows = await getDb()
     .select({ ticker: launches.ticker })
     .from(launches)
-    .where(inArray(launches.status, [...ACTIVE_TICKER]));
+    .where(activeTickerStatus());
   return rows.map((r) => r.ticker).filter((t): t is string => Boolean(t));
 }
 
