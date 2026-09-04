@@ -1,6 +1,6 @@
 # Trender
 
-Treasury-paid Pump.fun launches from a GrokBot seed. Invents name, ticker, description, and image. No buybacks. No creator-fee split. One wallet pays `create_v2`, is the Pump creator, buys about $10 on the curve, and hourly-collects fees above `FEE_SWEEP_MIN_SOL`.
+Treasury-paid Pump.fun launches from a GrokBot seed. Invents name, ticker, description, and image. No buybacks. No creator-fee split. One wallet pays `create_v2`, is the Pump creator, buys about $5 on the curve, and hourly-collects fees above `FEE_SWEEP_MIN_SOL`.
 
 ## Run locally
 
@@ -19,7 +19,7 @@ The HTML site (`/`, `/mint`, `/c/:ticker`) is gated by `SITE_PASSWORD`. Sign in 
 
 Compose maps MySQL to `3307` and Redis to `6380` so it does not collide with Champions on `3306` / `6379`.
 
-Fund the treasury address (from `GET /v1/meta`) with mainnet SOL. Pump create needs about 0.03 SOL of rent plus a little gas. The treasury buys about `LAUNCH_BUY_USD` (default $10) of the coin on the Pump curve in the same transaction as `create_v2` so the opening buy cannot be sniped. That packet is compacted with a treasury Address Lookup Table (`PUMP_ALT_ADDRESS`, created on first mint). No buybacks. No creator-fee split.
+Fund the treasury address (from `GET /v1/meta`) with mainnet SOL. Pump create needs about 0.03 SOL of rent plus a little gas. The treasury buys about `LAUNCH_BUY_USD` (default $5) of the coin on the Pump curve in the same transaction as `create_v2` so the opening buy cannot be sniped. That packet is compacted with a treasury Address Lookup Table (`PUMP_ALT_ADDRESS`, created on first mint). No buybacks. No creator-fee split.
 
 ## GrokBot
 

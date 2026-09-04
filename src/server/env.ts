@@ -85,7 +85,7 @@ export const env = {
   treasurySecret: optional("TREASURY_SECRET"),
   feeSweepMinSol: floatEnv("FEE_SWEEP_MIN_SOL", 0.05),
   /** USD of SOL to buy on the Pump curve immediately after create_v2. 0 skips the buy. */
-  launchBuyUsd: floatEnv("LAUNCH_BUY_USD", 10),
+  launchBuyUsd: floatEnv("LAUNCH_BUY_USD", 5),
   solanaRpcUrl: optional("SOLANA_RPC_URL"),
   /** Optional. Pin a treasury-owned Address Lookup Table used to fit create+buy in one tx. */
   pumpAltAddress: optional("PUMP_ALT_ADDRESS"),
